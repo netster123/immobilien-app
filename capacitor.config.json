@@ -1,0 +1,6 @@
+{
+  "appId": "io.github.netster123.immobilien",
+  "appName": "Immobilien-Assistent",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}

@@ -1,77 +1,65 @@
 # Immobilien-Assistent
 
-Wohnobjekte (Wohnungen, Häuser, Grundstücke …) verwalten, Eigentümer und Vermieter zuordnen und ihnen per Sprachbefehl E-Mails schreiben – mit Blick auf den bisherigen Gmail-Verlauf.
+Wohnobjekte (Wohnungen, Häuser, Grundstücke …) verwalten, Eigentümer und Vermieter zuordnen und ihnen per Sprachbefehl E-Mails schreiben – mit Blick auf den bisherigen E-Mail-Verkehr.
 
-**App öffnen:** https://netster123.github.io/immobilien-app/
+> „Hat die Vermieterin von der Lindenstraße geantwortet? Schreib ihr, dass Samstag passt.“
 
-> „Suche die Wohnung in der Lindenstraße raus und schreib der Vermieterin, ob am Freitag um 17 Uhr eine Besichtigung geht.“
+Der Assistent sucht das Objekt, liest den E-Mail-Verlauf mit dem Eigentümer und legt eine passende Antwort als Entwurf vor. **Gesendet wird erst, wenn du selbst auf „Senden“ tippst.**
 
-Der Assistent sucht das Objekt, öffnet es, liest den bisherigen E-Mail-Verkehr mit dem Eigentümer und legt einen fertigen Entwurf vor. **Gesendet wird erst, wenn du selbst auf „Senden“ klickst.**
+## Android-App (empfohlen)
 
-## Was die App kann
+**Herunterladen:** https://github.com/netster123/immobilien-app/releases/latest → `immobilien-assistent.apk`
 
-- Objekte anlegen, suchen, bearbeiten (Art, Adresse, Fläche, Zimmer, Preis, Status, Notizen)
-- Eigentümer, Vermieter, Verwalter oder Makler anlegen und Objekten zuordnen
-- Sprachsteuerung (Mikrofon-Knopf) oder Texteingabe, Antworten werden vorgelesen
-- E-Mail-Verlauf mit einem Eigentümer aus Gmail anzeigen
-- E-Mails mit Gmail senden – oder im eigenen Mail-Programm öffnen
-- Daten als Datei sichern und auf einem anderen Gerät wieder einlesen
+1. Die Datei auf dem Handy herunterladen und öffnen.
+2. Android fragt, ob der Browser Apps installieren darf → erlauben („Unbekannte Apps installieren“).
+3. App öffnen → **Einstellungen**:
+   - **Gemini-API-Schlüssel** eintragen (kostenlos unter https://aistudio.google.com/apikey).
+   - **E-Mail-Konto**: Anbieter (GMX, WEB.DE, T-Online oder Andere), E-Mail-Adresse und Passwort → **Speichern und Verbindung testen**.
+   - Benachrichtigungen erlauben, wenn Android fragt.
+
+**Wichtig bei GMX:** Im GMX-Postfach (Browser) unter *Einstellungen → POP3/IMAP Abruf* den Zugriff per IMAP erlauben. Wer bei GMX die Zwei-Faktor-Anmeldung nutzt, legt dort ein **App-Passwort** an und trägt dieses statt des normalen Passworts ein.
+
+### So funktioniert der E-Mail-Abruf
+
+- Die App ruft das Postfach **im Hintergrund** ab, je nach Einstellung alle 15, 30 oder 60 Minuten – auch wenn die App geschlossen ist. Android legt den genauen Zeitpunkt selbst fest (Akku sparen), es kann also auch mal etwas später werden.
+- Übernommen werden **nur Mails von und an deine eingetragenen Eigentümer**, nicht dein ganzes Postfach. Bei neuen Mails kommt eine Benachrichtigung.
+- Beim Öffnen der App wird sofort abgerufen. Ältere Mails holt „Aus Postfach laden“ beim jeweiligen Objekt – oder der Assistent, wenn er eine Mail schreiben soll.
+- Gesendete Mails gehen über dein eigenes Postfach und landen dort auch im Ordner „Gesendet“.
+- Passwort und Zugangsdaten liegen verschlüsselt nur auf deinem Handy.
+
+## Im Browser
+
+Die App läuft auch im Browser: https://netster123.github.io/immobilien-app/
+
+Dort fehlt nur der E-Mail-Abruf, denn ein Browser kann nicht direkt mit GMX sprechen. Entwürfe öffnest du mit „Im Mail-Programm öffnen“. Spracheingabe geht in Chrome, Edge und Safari.
 
 ## Deine Daten
 
-Alle Objekte, Kontakte und Einstellungen liegen **nur im Browser auf deinem Gerät**. Nichts davon landet auf GitHub oder einem fremden Server. Deshalb:
+Objekte, Kontakte, Mails und Einstellungen liegen **nur auf deinem Gerät**. Nichts davon landet auf GitHub oder einem fremden Server. Jeder Nutzer hat also seine eigenen Daten.
 
-- Jeder Nutzer hat seine eigenen Daten.
-- Auf einem anderen Gerät oder Browser fängst du leer an → über *Einstellungen → Daten exportieren / importieren* übertragen.
-- Browserdaten löschen löscht auch die App-Daten → regelmäßig exportieren.
+- Auf ein anderes Gerät überträgst du sie mit *Einstellungen → Daten exportieren / importieren*.
+- Wer die App deinstalliert, löscht auch die Daten → vorher exportieren.
+- Für Sprachbefehle schickt die App deine Anfrage und die dazu gefundenen Objekt-, Kontakt- und Maildaten an Google Gemini.
 
-Für die Sprachbefehle schickt die App deine Anfrage und die dazu gefundenen Objekt- und Kontaktdaten an Google Gemini.
+## Für Entwickler
 
-## Einrichtung für Nutzer (2 Minuten)
-
-1. App öffnen, oben auf **Einstellungen**.
-2. **Gemini-API-Schlüssel** eintragen. Kostenlos erhältlich unter https://aistudio.google.com/apikey (mit Google-Konto anmelden → „API-Schlüssel erstellen“).
-3. Optional: Name und Signatur für E-Mails eintragen.
-4. Für Gmail oben auf **Gmail verbinden** klicken und mit Google anmelden. (Funktioniert nur, wenn die Google-Client-ID eingerichtet ist, siehe unten.)
-
-Spracheingabe funktioniert in **Chrome, Edge und Safari** (nicht in Firefox). Beim ersten Mal fragt der Browser nach dem Mikrofon.
-
-## Einmalige Einrichtung von Gmail (nur der Betreiber)
-
-Damit die App Gmail lesen und senden darf, braucht sie eine Google-Client-ID. Die richtest du einmal ein:
-
-1. https://console.cloud.google.com öffnen → oben **Projekt erstellen**, z. B. „Immobilien-Assistent“.
-2. **APIs & Dienste → Bibliothek** → „Gmail API“ suchen → **Aktivieren**.
-3. **APIs & Dienste → OAuth-Zustimmungsbildschirm** (bzw. „Google Auth Platform“):
-   - Nutzertyp **Extern**, App-Name und deine E-Mail eintragen.
-   - Bei **Datenzugriff / Bereiche** hinzufügen: `gmail.readonly` und `gmail.send`.
-   - Bei **Zielgruppe / Testnutzer** die Gmail-Adressen aller Personen eintragen, die die App nutzen sollen (bis zu 100).
-4. **APIs & Dienste → Anmeldedaten → Anmeldedaten erstellen → OAuth-Client-ID**:
-   - Anwendungstyp **Webanwendung**
-   - **Autorisierte JavaScript-Quellen:** `https://netster123.github.io` (zum lokalen Testen zusätzlich `http://localhost:8765`)
-   - Erstellen → die **Client-ID** kopieren (endet auf `.apps.googleusercontent.com`).
-5. Die Client-ID in [`config.js`](config.js) bei `googleClientId` eintragen und hochladen. Dann müssen andere Nutzer nichts mehr eintragen. (Die Client-ID ist kein Geheimnis und darf öffentlich sein. Einen Gemini-Schlüssel dagegen **nie** in `config.js` schreiben.)
-
-Hinweise:
-- Solange die App bei Google im **Testmodus** ist, sieht man bei der Anmeldung den Hinweis „Google hat diese App nicht überprüft“ → *Weiter* klicken. Nur eingetragene Testnutzer können sich anmelden.
-- Die Gmail-Verbindung hält etwa eine Stunde, danach erneut auf „Gmail verbinden“ klicken.
-
-## Lokal starten (für Entwickler)
+Die Oberfläche ist reines HTML/CSS/JavaScript in `www/` (kein Build-Schritt). Die Android-App ist eine [Capacitor](https://capacitorjs.com)-Hülle darum, mit einem eigenen Mail-Baustein in Java.
 
 ```bash
-python3 -m http.server 8765
+npm start            # Web-Version unter http://localhost:8765
+npx cap sync android # Web-Dateien in die Android-App kopieren
 ```
 
-Dann http://localhost:8765 öffnen. Die App ist reines HTML/CSS/JavaScript ohne Build-Schritt.
-
-## Aufbau
+Bei jedem Push auf `main` baut GitHub Actions automatisch eine neue APK und veröffentlicht sie unter *Releases*; die Web-Version wird auf GitHub Pages aktualisiert.
 
 | Datei | Inhalt |
 |---|---|
-| `index.html`, `css/style.css` | Oberfläche |
-| `js/app.js` | Listen, Detailansichten, Dialoge |
-| `js/assistant.js` | Gemini-Assistent mit Werkzeugen (suchen, anlegen, Verlauf laden, Entwurf zeigen) |
-| `js/gmail.js` | Google-Anmeldung, Verlauf lesen, senden |
-| `js/db.js` | Datenspeicher im Browser (IndexedDB) |
-| `js/speech.js` | Spracheingabe und Vorlesen |
-| `config.js` | Standardwerte für alle Nutzer (Google-Client-ID, Modell) |
+| `www/js/app.js` | Listen, Detailansichten, Dialoge, Postfach-Einstellungen |
+| `www/js/assistant.js` | Gemini-Assistent mit Werkzeugen (suchen, anlegen, Verlauf laden, Entwurf zeigen) |
+| `www/js/mail.js` | Verbindung zum Mail-Baustein, Speichern der Mails |
+| `www/js/db.js` | Datenspeicher auf dem Gerät (IndexedDB) |
+| `www/js/speech.js` | Spracheingabe und Vorlesen (Android nativ, sonst Browser) |
+| `android/…/MailDienst.java` | IMAP-Abruf und SMTP-Versand (z. B. GMX) |
+| `android/…/MailWorker.java` | Regelmäßiger Hintergrundabruf |
+| `android/…/MailPlugin.java` | Schnittstelle zwischen Oberfläche und Mail-Baustein |
+| `android/…/MailKonto.java` | Verschlüsselt gespeicherte Zugangsdaten |
