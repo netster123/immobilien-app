@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Immobilien-Assistent</title>
+  <meta name="description" content="Wohnobjekte und Eigentümer verwalten und per Sprache E-Mails schreiben.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M4 15 16 5l12 10v12H20v-8h-8v8H4z' fill='%232f6f5e'/></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="kopf">
+    <div class="marke">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 15 16 5l12 10v12H20v-8h-8v8H4z"/></svg>
+      <span>Immobilien-Assistent</span>
+    </div>
+    <div class="kopf-aktionen">
+      <button id="btn-gmail" class="knopf leise" type="button">Gmail verbinden</button>
+      <button id="btn-einstellungen" class="knopf leise" type="button" aria-label="Einstellungen">Einstellungen</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="liste" aria-label="Übersicht">
+      <div class="reiter" role="tablist">
+        <button role="tab" data-reiter="objekte" aria-selected="true">Objekte</button>
+        <button role="tab" data-reiter="eigentuemer" aria-selected="false">Eigentümer</button>
+      </div>
+      <div class="suche">
+        <input id="suche" type="search" placeholder="Suchen …" autocomplete="off">
+        <button id="btn-neu" class="knopf" type="button">+ Neu</button>
+      </div>
+      <ul id="eintraege" class="eintraege"></ul>
+    </aside>
+
+    <section id="detail" class="detail" aria-live="polite"></section>
+
+    <aside class="assistent" aria-label="Sprachassistent">
+      <div class="assistent-kopf">
+        <h2>Assistent</h2>
+        <button id="btn-neues-gespraech" class="knopf leise klein" type="button">Neues Gespräch</button>
+      </div>
+      <div id="chat" class="chat">
+        <div class="nachricht system">Sag zum Beispiel: <em>„Suche die Wohnung in der Musterstraße raus und schreib dem Eigentümer, ob eine Besichtigung am Freitag möglich ist.“</em></div>
+      </div>
+      <form id="eingabe" class="eingabe">
+        <button id="btn-mikro" class="mikro" type="button" aria-label="Sprechen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>
+        </button>
+        <input id="eingabe-text" type="text" placeholder="Sprechen oder tippen …" autocomplete="off">
+        <button class="knopf" type="submit">Los</button>
+      </form>
+    </aside>
+  </main>
+
+  <!-- E-Mail-Entwurf -->
+  <dialog id="dlg-entwurf" class="dialog">
+    <form method="dialog" class="dialog-inhalt" id="form-entwurf">
+      <h2>E-Mail-Entwurf</h2>
+      <label>An <input name="an" type="email" required></label>
+      <label>Betreff <input name="betreff" required></label>
+      <label>Text <textarea name="text" rows="14" required></textarea></label>
+      <p class="hinweis" id="entwurf-hinweis"></p>
+      <div class="dialog-knoepfe">
+        <button value="abbrechen" class="knopf leise" type="submit" formnovalidate>Verwerfen</button>
+        <button id="btn-mailto" class="knopf leise" type="button">Im Mail-Programm öffnen</button>
+        <button id="btn-senden" class="knopf" type="button">Mit Gmail senden</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Einstellungen -->
+  <dialog id="dlg-einstellungen" class="dialog">
+    <form method="dialog" class="dialog-inhalt" id="form-einstellungen">
+      <h2>Einstellungen</h2>
+      <p class="hinweis">Alles wird nur in diesem Browser gespeichert und nie auf GitHub hochgeladen.</p>
+      <label>Gemini-API-Schlüssel
+        <input name="geminiKey" type="password" autocomplete="off" placeholder="AIza…">
+        <small>Kostenlos erhältlich unter <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></small>
+      </label>
+      <label>Gemini-Modell <input name="geminiModell" placeholder="gemini-3.8-flash"></label>
+      <label>Google-Client-ID (für Gmail)
+        <input name="googleClientId" placeholder="….apps.googleusercontent.com">
+        <small>Wie man sie bekommt, steht in der Anleitung (README) auf GitHub.</small>
+      </label>
+      <label>Dein Name (Absender) <input name="absenderName"></label>
+      <label>Signatur <textarea name="signatur" rows="3"></textarea></label>
+      <label class="haken"><input name="vorlesen" type="checkbox"> Antworten vorlesen</label>
+      <fieldset class="sicherung">
+        <legend>Datensicherung</legend>
+        <button id="btn-export" class="knopf leise" type="button">Daten exportieren</button>
+        <label class="knopf leise">Daten importieren <input id="inp-import" type="file" accept="application/json" hidden></label>
+      </fieldset>
+      <div class="dialog-knoepfe">
+        <button value="abbrechen" class="knopf leise" formnovalidate>Abbrechen</button>
+        <button value="speichern" class="knopf">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
