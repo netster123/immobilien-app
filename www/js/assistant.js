@@ -4,6 +4,7 @@
 
 import * as db from './db.js';
 import * as mail from './mail.js';
+import * as rollen from './rollen.js';
 import { einstellungen } from './settings.js';
 
 const OBJEKT_FELDER = {
@@ -18,44 +19,63 @@ const OBJEKT_FELDER = {
   notizen: { type: 'string' },
 };
 
-const EIGENTUEMER_FELDER = {
-  name: { type: 'string', description: 'Vor- und Nachname' },
-  rolle: { type: 'string', enum: ['Eigentümer', 'Vermieter', 'Verwalter', 'Makler'] },
+const PERSON_FELDER = {
+  name: { type: 'string', description: 'Vor- und Nachname bzw. Firmenname' },
+  rolle: { type: 'string', enum: rollen.ROLLEN },
   anrede: { type: 'string', enum: ['Herr', 'Frau', 'Firma'] },
   firma: { type: 'string' }, email: { type: 'string' }, telefon: { type: 'string' },
   adresse: { type: 'string' }, notizen: { type: 'string' },
+  fuer_eigentuemer_id: { type: 'string', description: 'Nur bei Vermietern/Hausverwaltungen: ID des Eigentümers, für den sie vermieten' },
 };
+const ALS = { type: 'string', enum: ['Eigentümer', 'Vermieter'], description: 'In welcher Rolle die Person dem Objekt zugeordnet wird' };
 
 const WERKZEUGE = [
   { name: 'objekte_suchen', description: 'Sucht Wohnobjekte nach Name, Adresse, Ort, Typ oder Notizen. Leerer Suchbegriff liefert alle.',
     parameters: { type: 'object', properties: { suchbegriff: { type: 'string' } } } },
-  { name: 'objekt_oeffnen', description: 'Zeigt ein Objekt in der App an (macht es zum aktuellen Objekt).',
+  { name: 'objekt_oeffnen', description: 'Zeigt ein Objekt in der App an (macht es zum aktuellen Objekt) und liefert Eigentümer und Vermieter.',
     parameters: { type: 'object', properties: { objekt_id: { type: 'string' } }, required: ['objekt_id'] } },
   { name: 'objekt_anlegen', description: 'Legt ein neues Wohnobjekt an und öffnet es.',
     parameters: { type: 'object', properties: OBJEKT_FELDER, required: ['bezeichnung', 'typ'] } },
   { name: 'objekt_aendern', description: 'Ändert Felder eines Objekts. Nur die genannten Felder werden überschrieben.',
     parameters: { type: 'object', properties: { objekt_id: { type: 'string' }, ...OBJEKT_FELDER }, required: ['objekt_id'] } },
-  { name: 'eigentuemer_suchen', description: 'Sucht Eigentümer/Vermieter nach Name, Firma, E-Mail usw.',
+  { name: 'personen_suchen', description: 'Sucht Eigentümer, Vermieter, Hausverwaltungen und Makler nach Name, Firma, E-Mail usw.',
     parameters: { type: 'object', properties: { suchbegriff: { type: 'string' } } } },
-  { name: 'eigentuemer_anlegen', description: 'Legt einen Eigentümer/Vermieter an. Mit objekt_id wird er gleich diesem Objekt zugeordnet.',
-    parameters: { type: 'object', properties: { objekt_id: { type: 'string' }, ...EIGENTUEMER_FELDER }, required: ['name'] } },
-  { name: 'eigentuemer_aendern', description: 'Ändert Felder eines Eigentümers.',
-    parameters: { type: 'object', properties: { eigentuemer_id: { type: 'string' }, ...EIGENTUEMER_FELDER }, required: ['eigentuemer_id'] } },
-  { name: 'eigentuemer_zuordnen', description: 'Ordnet einem Objekt einen bestehenden Eigentümer zu.',
-    parameters: { type: 'object', properties: { objekt_id: { type: 'string' }, eigentuemer_id: { type: 'string' } }, required: ['objekt_id', 'eigentuemer_id'] } },
-  { name: 'emailverlauf_laden', description: 'Lädt den bisherigen E-Mail-Verkehr mit dem Eigentümer aus dem Postfach (neueste zuerst). Vor dem Schreiben einer E-Mail immer aufrufen.',
-    parameters: { type: 'object', properties: { eigentuemer_id: { type: 'string' }, anzahl: { type: 'number' } }, required: ['eigentuemer_id'] } },
-  { name: 'email_entwurf_zeigen', description: 'Zeigt dem Nutzer einen fertigen E-Mail-Entwurf an den Eigentümer. Der Nutzer prüft und sendet selbst. Für eine Antwort auf eine bestehende Mail deren messageId als message_id angeben und den Betreff mit „Re: “ übernehmen.',
+  { name: 'person_anlegen', description: 'Legt eine Person an. Mit objekt_id und als wird sie dem Objekt gleich als Eigentümer oder Vermieter zugeordnet. Vorher mit personen_suchen prüfen, ob es sie schon gibt.',
+    parameters: { type: 'object', properties: { objekt_id: { type: 'string' }, als: ALS, ...PERSON_FELDER }, required: ['name'] } },
+  { name: 'person_aendern', description: 'Ändert Felder einer Person.',
+    parameters: { type: 'object', properties: { person_id: { type: 'string' }, ...PERSON_FELDER }, required: ['person_id'] } },
+  { name: 'person_zuordnen', description: 'Ordnet einem Objekt eine bestehende Person als Eigentümer oder als Vermieter zu. Als Vermieter mit leerer person_id: Eigentümer vermietet selbst.',
+    parameters: { type: 'object', properties: { objekt_id: { type: 'string' }, person_id: { type: 'string' }, als: ALS }, required: ['objekt_id', 'als'] } },
+  { name: 'emailverlauf_laden', description: 'Lädt den bisherigen E-Mail-Verkehr mit einer Person (neueste zuerst). Vor dem Schreiben einer E-Mail immer aufrufen.',
+    parameters: { type: 'object', properties: { person_id: { type: 'string' }, anzahl: { type: 'number' } }, required: ['person_id'] } },
+  { name: 'email_entwurf_zeigen', description: 'Zeigt dem Nutzer einen fertigen E-Mail-Entwurf an eine Person (Eigentümer oder Vermieter). Der Nutzer prüft und sendet selbst. Für eine Antwort auf eine bestehende Mail deren messageId als message_id angeben und den Betreff mit „Re: “ übernehmen.',
     parameters: { type: 'object', properties: {
-      objekt_id: { type: 'string' }, eigentuemer_id: { type: 'string' },
+      objekt_id: { type: 'string' }, person_id: { type: 'string' },
       betreff: { type: 'string' }, text: { type: 'string', description: 'Vollständiger Text mit Anrede und Grußformel' },
       message_id: { type: 'string' },
-    }, required: ['eigentuemer_id', 'betreff', 'text'] } },
+    }, required: ['person_id', 'betreff', 'text'] } },
 ];
 
+function kurzPerson(p) {
+  if (!p) return null;
+  const { id, name, anrede, rolle, firma, email, telefon, fuer_eigentuemer_id } = p;
+  return { id, name, anrede, rolle, firma, email, telefon, fuer_eigentuemer_id };
+}
+
+async function objektMitRollen(o) {
+  const b = await rollen.beteiligte(o);
+  return {
+    ...o,
+    eigentuemer: kurzPerson(b.eigentuemer),
+    vermieter: kurzPerson(b.vermieter),
+    vermietet_selbst: b.vermietetSelbst,
+    ...(b.hinweis ? { hinweis: b.hinweis } : {}),
+  };
+}
+
 function kurzObjekt(o) {
-  const { id, bezeichnung, typ, strasse, plz, ort, status, eigentuemer_id } = o;
-  return { id, bezeichnung, typ, adresse: [strasse, [plz, ort].filter(Boolean).join(' ')].filter(Boolean).join(', '), status, eigentuemer_id };
+  const { id, bezeichnung, typ, strasse, plz, ort, status, eigentuemer_id, vermieter_id } = o;
+  return { id, bezeichnung, typ, adresse: [strasse, [plz, ort].filter(Boolean).join(' ')].filter(Boolean).join(', '), status, eigentuemer_id, vermieter_id };
 }
 
 export class Assistent {
@@ -72,19 +92,22 @@ export class Assistent {
     let aktuell = 'Zurzeit ist kein Objekt geöffnet.';
     if (id) {
       const o = await db.holen('objekte', id);
-      const e = o?.eigentuemer_id ? await db.holen('eigentuemer', o.eigentuemer_id) : null;
-      if (o) aktuell = `Aktuell geöffnetes Objekt: ${JSON.stringify(o)}\nZugeordneter Eigentümer: ${e ? JSON.stringify(e) : 'keiner'}`;
+      if (o) aktuell = `Aktuell geöffnetes Objekt mit Eigentümer und Vermieter: ${JSON.stringify(await objektMitRollen(o))}`;
     }
-    return `Du bist der Assistent einer Immobilien-App. Der Nutzer verwaltet Wohnobjekte (Wohnungen, Häuser, Grundstücke …) und deren Eigentümer/Vermieter und schreibt ihnen E-Mails.
+    return `Du bist der Assistent einer Immobilien-App. Der Nutzer verwaltet Wohnobjekte (Wohnungen, Häuser, Grundstücke …) und schreibt deren Eigentümern und Vermietern E-Mails.
 Der Nutzer spricht meist per Spracheingabe – Tippfehler und ungenaue Namen sind normal, suche dann großzügig.
+Eigentümer und Vermieter:
+- Jedes Objekt hat einen Eigentümer und einen Vermieter. Ist kein eigener Vermieter eingetragen, vermietet der Eigentümer selbst und ist damit auch der Vermieter (vermietet_selbst).
+- Ein eigener Vermieter (z. B. Hausverwaltung) gehört zu einem Eigentümer (fuer_eigentuemer_id). Die App übernimmt bekannte Zuordnungen automatisch.
+- „Schreib dem Vermieter“ → an objekt.vermieter, „schreib dem Eigentümer“ → an objekt.eigentuemer. Ist nur „Eigentümer/Vermieter“ oder „dem Besitzer“ gesagt, nimm den Vermieter bei Miet-Themen (Besichtigung, Miete, Mängel), sonst den Eigentümer; frag nach, wenn es unklar ist und beide verschieden sind.
+- Fehlt die angesprochene Person oder ihre E-Mail-Adresse, frag danach. Neue Personen legst du mit der passenden Rolle an (als: Eigentümer oder Vermieter).
 Regeln:
 - Antworte immer auf Deutsch, kurz und gesprochen-freundlich (1–3 Sätze, keine Aufzählungen, kein Markdown). Sprich den Nutzer mit „du“ an.
 - Nutze die Werkzeuge. Erfinde nie IDs, Adressen oder Daten. Wenn ein Objekt gemeint ist, suche es und öffne es.
 - Passen mehrere Objekte, nenne sie kurz und frage nach.
 - Bevor du eine E-Mail schreibst: Verlauf mit emailverlauf_laden holen, Inhalt und Ton darauf abstimmen, auf offene Fragen eingehen. Bezieht sich die Mail auf eine erhaltene Nachricht, als Antwort darauf schreiben.
-- E-Mails sind höflich, sachlich, mit passender Anrede (Sehr geehrte Frau / Sehr geehrter Herr …) und Grußformel.${s.absenderName ? ` Absender ist ${s.absenderName}.` : ''}${s.signatur ? ` Signatur:\n${s.signatur}` : ''}
+- E-Mails sind höflich, sachlich, mit passender Anrede (Sehr geehrte Frau / Sehr geehrter Herr …, bei Firmen „Sehr geehrte Damen und Herren“) und Grußformel.${s.absenderName ? ` Absender ist ${s.absenderName}.` : ''}${s.signatur ? ` Signatur:\n${s.signatur}` : ''}
 - Eine E-Mail zeigst du immer nur mit email_entwurf_zeigen an. Du sendest nie selbst; sag dem Nutzer, dass der Entwurf zum Prüfen und Senden bereitliegt.
-- Hat das Objekt keinen Eigentümer oder dieser keine E-Mail-Adresse, frag danach.
 Postfach: ${mail.eingerichtet() ? `${mail.adresse()} ist eingerichtet, Verlauf wird live abgerufen` : 'nicht eingerichtet – es gibt nur bereits gespeicherte Mails; E-Mails trotzdem entwerfen'}.
 Heute ist ${new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
 ${aktuell}`;
@@ -105,8 +128,7 @@ ${aktuell}`;
         const o = await db.holen('objekte', a.objekt_id);
         if (!o) return { fehler: 'Objekt nicht gefunden' };
         await this.ui.objektOeffnen(o.id);
-        const e = o.eigentuemer_id ? await db.holen('eigentuemer', o.eigentuemer_id) : null;
-        return { objekt: o, eigentuemer: e };
+        return { objekt: await objektMitRollen(o) };
       }
       case 'objekt_anlegen': {
         const o = await db.speichern('objekte', { status: 'Interessant', ...a });
@@ -121,57 +143,63 @@ ${aktuell}`;
         await this.ui.objektOeffnen(neu.id);
         return { geaendert: neu };
       }
-      case 'eigentuemer_suchen': {
+      case 'personen_suchen': {
         const t = await db.suchen('eigentuemer', a.suchbegriff || '');
-        return { anzahl: t.length, eigentuemer: t.slice(0, 20) };
+        return { anzahl: t.length, personen: t.slice(0, 20).map(kurzPerson) };
       }
-      case 'eigentuemer_anlegen': {
-        const { objekt_id, ...felder } = a;
-        const e = await db.speichern('eigentuemer', { rolle: 'Eigentümer', ...felder });
+      case 'person_anlegen': {
+        const { objekt_id, als, ...felder } = a;
+        const rolle = felder.rolle || (als === 'Vermieter' ? 'Vermieter' : 'Eigentümer');
+        const p = await db.speichern('eigentuemer', { ...felder, rolle });
+        let ergebnis = { angelegt: kurzPerson(p) };
         if (objekt_id) {
           const o = await db.holen('objekte', objekt_id);
-          if (o) { await db.speichern('objekte', { ...o, eigentuemer_id: e.id }); await this.ui.objektOeffnen(o.id); }
+          if (o) {
+            const r = await rollen.zuordnen(o, p.id, als || (rolle === 'Eigentümer' ? 'Eigentümer' : 'Vermieter'));
+            ergebnis = { ...ergebnis, objekt: await objektMitRollen(r.objekt), automatisch_uebernommen: kurzPerson(r.uebernommen) };
+            await this.ui.objektOeffnen(o.id);
+          }
         }
         await this.ui.neuLaden();
-        return { angelegt: e, zugeordnet_zu: objekt_id || null };
+        return ergebnis;
       }
-      case 'eigentuemer_aendern': {
-        const { eigentuemer_id, ...felder } = a;
-        const e = await db.holen('eigentuemer', eigentuemer_id);
-        if (!e) return { fehler: 'Eigentümer nicht gefunden' };
-        const neu = await db.speichern('eigentuemer', { ...e, ...felder });
+      case 'person_aendern': {
+        const { person_id, ...felder } = a;
+        const p = await db.holen('eigentuemer', person_id);
+        if (!p) return { fehler: 'Person nicht gefunden' };
+        const neu = await db.speichern('eigentuemer', { ...p, ...felder });
         await this.ui.neuLaden();
-        return { geaendert: neu };
+        return { geaendert: kurzPerson(neu) };
       }
-      case 'eigentuemer_zuordnen': {
+      case 'person_zuordnen': {
         const o = await db.holen('objekte', a.objekt_id);
-        const e = await db.holen('eigentuemer', a.eigentuemer_id);
-        if (!o || !e) return { fehler: 'Objekt oder Eigentümer nicht gefunden' };
-        await db.speichern('objekte', { ...o, eigentuemer_id: e.id });
+        if (!o) return { fehler: 'Objekt nicht gefunden' };
+        if (a.person_id && !(await db.holen('eigentuemer', a.person_id))) return { fehler: 'Person nicht gefunden' };
+        const r = await rollen.zuordnen(o, a.person_id || '', a.als);
         await this.ui.objektOeffnen(o.id);
-        return { ok: true };
+        return { objekt: await objektMitRollen(r.objekt), automatisch_uebernommen: kurzPerson(r.uebernommen) };
       }
       case 'emailverlauf_laden': {
-        const e = await db.holen('eigentuemer', a.eigentuemer_id);
-        if (!e) return { fehler: 'Eigentümer nicht gefunden' };
-        if (!e.email) return { fehler: 'Eigentümer hat keine E-Mail-Adresse' };
+        const p = await db.holen('eigentuemer', a.person_id);
+        if (!p) return { fehler: 'Person nicht gefunden' };
+        if (!p.email) return { fehler: 'Person hat keine E-Mail-Adresse' };
         let mails;
         let hinweis;
         try {
-          mails = await mail.verlauf(e.email, Math.min(a.anzahl || 8, 20));
+          mails = await mail.verlauf(p.email, Math.min(a.anzahl || 8, 20));
         } catch (err) {
           hinweis = 'Postfach nicht erreichbar (' + err.message + '), zeige gespeicherte Mails.';
-          mails = await mail.lokalerVerlauf(e.email, Math.min(a.anzahl || 8, 20));
+          mails = await mail.lokalerVerlauf(p.email, Math.min(a.anzahl || 8, 20));
         }
         await this.ui.neuLaden();
         return { anzahl: mails.length, hinweis, emails: mails.map(({ messageId, datum, von, an, betreff, text, eingehend }) => ({ messageId, datum, von, an, betreff, text, eingehend })) };
       }
       case 'email_entwurf_zeigen': {
-        const e = await db.holen('eigentuemer', a.eigentuemer_id);
-        if (!e) return { fehler: 'Eigentümer nicht gefunden' };
-        if (!e.email) return { fehler: 'Eigentümer hat keine E-Mail-Adresse – bitte erst erfragen' };
+        const p = await db.holen('eigentuemer', a.person_id);
+        if (!p) return { fehler: 'Person nicht gefunden' };
+        if (!p.email) return { fehler: 'Person hat keine E-Mail-Adresse – bitte erst erfragen' };
         this.ui.entwurfZeigen({
-          objekt_id: a.objekt_id || this.ui.aktuellesObjektId(), eigentuemer_id: e.id, an: e.email,
+          objekt_id: a.objekt_id || this.ui.aktuellesObjektId(), person_id: p.id, an: p.email,
           betreff: a.betreff, text: a.text, inReplyTo: a.message_id,
         });
         return { ok: true, hinweis: 'Entwurf wird angezeigt; der Nutzer sendet selbst.' };

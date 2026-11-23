@@ -105,9 +105,9 @@ export async function verlauf(emailAdresse, max = 10) {
   return lokalerVerlauf(emailAdresse, max);
 }
 
-export async function senden({ an, betreff, text, inReplyTo, objekt_id, eigentuemer_id }) {
+export async function senden({ an, betreff, text, inReplyTo, objekt_id, person_id }) {
   if (!istApp() || !eingerichtet()) throw new Error('Senden geht nur in der Android-App mit eingerichtetem E-Mail-Konto.');
   const { mail } = await plugin().senden({ an, betreff, text, inReplyTo: inReplyTo || '' });
-  await merken(mail, { objekt_id, eigentuemer_id });
+  await merken(mail, { objekt_id, person_id });
   return mail;
 }

@@ -1,5 +1,6 @@
 import * as db from './db.js';
 import * as mail from './mail.js';
+import * as rollen from './rollen.js';
 import { Assistent } from './assistant.js';
 import { zuhoeren, stoppen, vorlesen, verstummen, spracheingabeVerfuegbar } from './speech.js';
 import { einstellungen, speichereEinstellungen, gespeicherteEinstellungen } from './settings.js';
@@ -9,7 +10,6 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 const TYPEN = ['Wohnung', 'Haus', 'Grundstück', 'Gewerbe', 'Garage/Stellplatz', 'Sonstiges'];
 const STATUS = ['Interessant', 'Angefragt', 'Besichtigung', 'Verhandlung', 'Abgeschlossen', 'Abgesagt'];
-const ROLLEN = ['Eigentümer', 'Vermieter', 'Verwalter', 'Makler'];
 
 const zustand = { reiter: 'objekte', auswahl: null, entwurf: null };
 
@@ -38,12 +38,12 @@ async function listeZeichnen() {
   if (!daten.length) {
     ul.innerHTML = `<li class="leer">${begriff ? 'Nichts gefunden.' : zustand.reiter === 'objekte'
       ? 'Noch keine Objekte. Klick auf „+ Neu“ oder sag: „Lege eine Wohnung in der Musterstraße 5 in Berlin an.“'
-      : 'Noch keine Eigentümer.'}</li>`;
+      : 'Noch keine Personen.'}</li>`;
     return;
   }
   ul.innerHTML = daten.map((e) => {
     const aktiv = zustand.auswahl?.art === zustand.reiter && zustand.auswahl.id === e.id;
-    const titel = zustand.reiter === 'objekte' ? e.bezeichnung || 'Ohne Namen' : e.name || e.firma || 'Ohne Namen';
+    const titel = zustand.reiter === 'objekte' ? e.bezeichnung || 'Ohne Namen' : rollen.name(e);
     const unter = zustand.reiter === 'objekte' ? [e.typ, adresseText(e)].filter(Boolean).join(' · ') : [e.rolle, e.email].filter(Boolean).join(' · ');
     return `<li><button data-id="${esc(e.id)}" aria-current="${aktiv}"><span class="titel">${esc(titel)}</span><span class="unter">${esc(unter)}</span></button></li>`;
   }).join('');
@@ -60,14 +60,34 @@ function auswahlFeld(name, werte, aktuell) {
   return `<select name="${name}">${werte.map((w) => `<option ${w === aktuell ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select>`;
 }
 
+function personAuswahl(id, personen, ohne = []) {
+  const liste = personen.filter((p) => !ohne.includes(p.id));
+  return liste.length ? `<select id="${id}" class="person-wahl"><option value="">Bestehende Person wählen …</option>${liste.map((x) => `<option value="${esc(x.id)}">${esc(rollen.name(x))}${x.rolle ? ` (${esc(x.rolle)})` : ''}</option>`).join('')}</select>` : '';
+}
+
+function personBlock(p, als, { selbst = false } = {}) {
+  return `<div class="kontakt">
+      <span class="name">${esc(rollen.name(p))}${p.firma && p.anrede !== 'Firma' ? ` · ${esc(p.firma)}` : ''}</span>
+      <span class="unter">${esc(p.rolle || '')}${p.email ? ` · <a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : ' · keine E-Mail-Adresse'}${p.telefon ? ` · <a href="tel:${esc(p.telefon)}">${esc(p.telefon)}</a>` : ''}</span>
+      ${p.adresse ? `<span class="unter">${esc(p.adresse)}</span>` : ''}
+    </div>
+    <div class="knopfreihe">
+      <button class="knopf" type="button" data-mail="${esc(p.id)}" ${p.email ? '' : 'disabled'}>E-Mail schreiben</button>
+      ${selbst ? '' : `<button class="knopf leise" type="button" data-bearbeiten="${esc(p.id)}" data-als="${als}">Bearbeiten</button>
+      <button class="knopf leise" type="button" data-entfernen="${als}">Entfernen</button>`}
+    </div>`;
+}
+
 async function objektZeigen(id) {
   const o = await db.holen('objekte', id);
   if (!o) return willkommenZeigen();
   zustand.auswahl = { art: 'objekte', id };
   if (zustand.reiter !== 'objekte') reiterSetzen('objekte'); else listeZeichnen();
-  const e = o.eigentuemer_id ? await db.holen('eigentuemer', o.eigentuemer_id) : null;
-  const alleEig = (await db.alle('eigentuemer')).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  const mails = e?.email ? await mail.lokalerVerlauf(e.email, 30) : [];
+  const { eigentuemer: eig, vermieter: verm, vermietetSelbst, hinweis } = await rollen.beteiligte(o);
+  const personen = (await db.alle('eigentuemer')).sort((a, b) => rollen.name(a).localeCompare(rollen.name(b)));
+  const vorschlag = eig && vermietetSelbst ? await rollen.vermieterVorschlag(eig.id, id) : null;
+  const mitMail = [eig, verm].filter((p, i, a) => p?.email && a.findIndex((x) => x?.id === p.id) === i);
+  const verlaeufe = await Promise.all(mitMail.map(async (p) => ({ p, mails: await mail.lokalerVerlauf(p.email, 30) })));
 
   $('#detail').innerHTML = `
     <form class="karte" id="form-objekt">
@@ -94,44 +114,50 @@ async function objektZeigen(id) {
       </div>
     </form>
 
-    <section class="karte">
-      <div class="karte-kopf"><h2>Eigentümer / Vermieter</h2></div>
-      ${e ? `
-        <div class="kontakt">
-          <span class="name">${esc([e.anrede, e.name].filter(Boolean).join(' '))}${e.firma ? ` · ${esc(e.firma)}` : ''}</span>
-          <span class="unter">${esc(e.rolle || '')}${e.email ? ` · <a href="mailto:${esc(e.email)}">${esc(e.email)}</a>` : ' · keine E-Mail-Adresse'}${e.telefon ? ` · <a href="tel:${esc(e.telefon)}">${esc(e.telefon)}</a>` : ''}</span>
-          ${e.adresse ? `<span class="unter">${esc(e.adresse)}</span>` : ''}
-        </div>
-        <div class="knopfreihe">
-          <button class="knopf" type="button" id="btn-mail-neu" ${e.email ? '' : 'disabled'}>E-Mail schreiben</button>
-          <button class="knopf leise" type="button" data-eigentuemer="${esc(e.id)}" id="btn-eig-bearbeiten">Bearbeiten</button>
-          <button class="knopf leise" type="button" id="btn-eig-loesen">Zuordnung lösen</button>
-        </div>` : `
-        <p class="hinweis">Diesem Objekt ist noch niemand zugeordnet.</p>
-        <div class="knopfreihe">
-          ${alleEig.length ? `<select id="sel-eig" style="max-width:260px"><option value="">Bestehenden wählen …</option>${alleEig.map((x) => `<option value="${esc(x.id)}">${esc(x.name || x.firma)}</option>`).join('')}</select>` : ''}
-          <button class="knopf" type="button" id="btn-eig-neu">Neu anlegen</button>
-        </div>`}
+    <section class="karte rollen">
+      <div class="rolle">
+        <h3>Eigentümer</h3>
+        ${eig ? personBlock(eig, 'Eigentümer') : `
+          <p class="hinweis">Noch kein Eigentümer eingetragen.</p>
+          <div class="knopfreihe">${personAuswahl('sel-eigentuemer', personen, [o.vermieter_id])}
+            <button class="knopf leise" type="button" data-neu="Eigentümer">Neu anlegen</button></div>`}
+      </div>
+      <div class="rolle">
+        <h3>Vermieter</h3>
+        ${verm && vermietetSelbst ? `<p class="hinweis">Der Eigentümer vermietet selbst.</p>
+          <div class="knopfreihe">${personAuswahl('sel-vermieter', personen, [o.eigentuemer_id])}
+            <button class="knopf leise" type="button" data-neu="Vermieter">Anderen Vermieter anlegen</button></div>
+          ${vorschlag ? `<p class="hinweis">Bei anderen Objekten dieses Eigentümers vermietet ${esc(rollen.name(vorschlag))}. <button class="knopf leise klein" type="button" id="btn-vorschlag" data-id="${esc(vorschlag.id)}">Übernehmen</button></p>` : ''}`
+        : verm ? personBlock(verm, 'Vermieter') : `
+          <p class="hinweis">${eig ? '' : 'Noch kein Vermieter eingetragen. Ist der Eigentümer bekannt, vermietet er sonst selbst.'}</p>
+          <div class="knopfreihe">${personAuswahl('sel-vermieter', personen, [o.eigentuemer_id])}
+            <button class="knopf leise" type="button" data-neu="Vermieter">Neu anlegen</button></div>`}
+      </div>
+      ${hinweis ? `<p class="hinweis warnung">${esc(hinweis)}</p>` : ''}
     </section>
 
-    ${e?.email ? `
+    ${verlaeufe.map(({ p, mails }) => `
     <section class="karte">
       <div class="karte-kopf">
-        <h2>E-Mail-Verlauf mit ${esc(e.name || e.email)}</h2>
-        ${mail.eingerichtet() ? '<button class="knopf leise klein" type="button" id="btn-verlauf">Aus Postfach laden</button>' : ''}
+        <h2>E-Mails mit ${esc(rollen.name(p))} <span class="hinweis">(${esc([p.id === eig?.id ? 'Eigentümer' : '', p.id === verm?.id ? 'Vermieter' : ''].filter(Boolean).join(' und '))})</span></h2>
+        ${mail.eingerichtet() ? `<button class="knopf leise klein" type="button" data-verlauf="${esc(p.email)}">Aus Postfach laden</button>` : ''}
       </div>
-      <div class="mails" id="verlauf">${mails.length ? mails.map(mailHtml).join('') : `<p class="hinweis">${mail.eingerichtet()
+      <div class="mails" data-verlauf-box="${esc(p.email)}">${mails.length ? mails.map(mailHtml).join('') : `<p class="hinweis">${mail.eingerichtet()
         ? 'Noch keine Mails gespeichert. „Aus Postfach laden“ holt den bisherigen Verkehr.'
         : mail.istApp() ? 'E-Mail-Konto in den Einstellungen einrichten, dann erscheinen die Mails hier automatisch.'
           : 'Den E-Mail-Verlauf gibt es in der Android-App.'}</p>`}</div>
-    </section>` : ''}
+    </section>`).join('')}
   `;
 
+  const neuLaden = async ({ uebernommen }, rolleText) => {
+    if (uebernommen) toast(`${rolleText} ${rollen.name(uebernommen)} automatisch übernommen.`);
+    await objektZeigen(id);
+  };
   $('#form-objekt').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const f = Object.fromEntries(new FormData(ev.target));
     for (const k of ['flaeche', 'zimmer', 'preis']) f[k] = f[k] === '' ? '' : Number(f[k]);
-    await db.speichern('objekte', { ...o, ...f });
+    await db.speichern('objekte', { ...(await db.holen('objekte', id)), ...f });
     toast('Gespeichert.');
     objektZeigen(id);
   });
@@ -142,22 +168,29 @@ async function objektZeigen(id) {
     willkommenZeigen();
     listeZeichnen();
   });
-  $('#btn-mail-neu')?.addEventListener('click', () => entwurfZeigen({ objekt_id: id, eigentuemer_id: e.id, an: e.email, betreff: o.bezeichnung, text: '' }));
-  $('#btn-eig-bearbeiten')?.addEventListener('click', () => eigentuemerZeigen(e.id, id));
-  $('#btn-eig-loesen')?.addEventListener('click', async () => {
-    await db.speichern('objekte', { ...o, eigentuemer_id: '' });
-    objektZeigen(id);
+  $('#sel-eigentuemer')?.addEventListener('change', async (ev) => {
+    if (ev.target.value) neuLaden(await rollen.eigentuemerSetzen(o, ev.target.value), 'Vermieter');
   });
-  $('#sel-eig')?.addEventListener('change', async (ev) => {
-    if (!ev.target.value) return;
-    await db.speichern('objekte', { ...o, eigentuemer_id: ev.target.value });
-    objektZeigen(id);
+  $('#sel-vermieter')?.addEventListener('change', async (ev) => {
+    if (ev.target.value) neuLaden(await rollen.vermieterSetzen(o, ev.target.value), 'Eigentümer');
   });
-  $('#btn-eig-neu')?.addEventListener('click', () => eigentuemerZeigen(null, id));
-  $('#btn-verlauf')?.addEventListener('click', () => verlaufLaden(e.email));
-  document.querySelectorAll('#verlauf [data-antworten]').forEach((b) => b.addEventListener('click', async () => {
+  $('#btn-vorschlag')?.addEventListener('click', async (ev) => neuLaden(await rollen.vermieterSetzen(o, ev.target.dataset.id), 'Eigentümer'));
+  document.querySelectorAll('#detail [data-neu]').forEach((b) => b.addEventListener('click', () => personZeigen(null, id, b.dataset.neu)));
+  document.querySelectorAll('#detail [data-bearbeiten]').forEach((b) => b.addEventListener('click', () => personZeigen(b.dataset.bearbeiten, id, b.dataset.als)));
+  document.querySelectorAll('#detail [data-entfernen]').forEach((b) => b.addEventListener('click', async () => {
+    if (b.dataset.entfernen === 'Vermieter') await rollen.vermieterSetzen(o, '');
+    else await db.speichern('objekte', { ...o, eigentuemer_id: '' });
+    objektZeigen(id);
+  }));
+  document.querySelectorAll('#detail [data-mail]').forEach((b) => b.addEventListener('click', async () => {
+    const p = await db.holen('eigentuemer', b.dataset.mail);
+    entwurfZeigen({ objekt_id: id, person_id: p.id, an: p.email, betreff: o.bezeichnung, text: '' });
+  }));
+  document.querySelectorAll('#detail [data-verlauf]').forEach((b) => b.addEventListener('click', () => verlaufLaden(b)));
+  document.querySelectorAll('#detail [data-antworten]').forEach((b) => b.addEventListener('click', async () => {
     const m = await db.holen('mails', b.dataset.antworten);
-    entwurfZeigen({ objekt_id: id, eigentuemer_id: e.id, an: e.email, betreff: /^re:/i.test(m.betreff) ? m.betreff : 'Re: ' + m.betreff, text: '', inReplyTo: m.messageId });
+    const p = mitMail.find((x) => x.email.toLowerCase() === m.adresse);
+    entwurfZeigen({ objekt_id: id, person_id: p?.id, an: p?.email || m.adresse, betreff: /^re:/i.test(m.betreff) ? m.betreff : 'Re: ' + m.betreff, text: '', inReplyTo: m.messageId });
   }));
 }
 
@@ -169,9 +202,8 @@ function mailHtml(m) {
   </details>`;
 }
 
-async function verlaufLaden(adresse) {
-  const box = $('#verlauf');
-  const knopf = $('#btn-verlauf');
+async function verlaufLaden(knopf) {
+  const adresse = knopf.dataset.verlauf;
   knopf.disabled = true;
   knopf.textContent = 'Lade …';
   try {
@@ -179,31 +211,40 @@ async function verlaufLaden(adresse) {
     if (zustand.auswahl?.art === 'objekte') await objektZeigen(zustand.auswahl.id);
     if (!(await mail.lokalerVerlauf(adresse)).length) toast(`Im Postfach keine Mails mit ${adresse} gefunden.`);
   } catch (err) {
-    box.insertAdjacentHTML('afterbegin', `<p class="hinweis">${esc(err.message)}</p>`);
+    knopf.closest('.karte').querySelector('.mails').insertAdjacentHTML('afterbegin', `<p class="hinweis">${esc(err.message)}</p>`);
     knopf.disabled = false;
     knopf.textContent = 'Aus Postfach laden';
   }
 }
 
-async function eigentuemerZeigen(id, fuerObjektId = null) {
-  const e = id ? await db.holen('eigentuemer', id) : { rolle: 'Eigentümer' };
+// Person anzeigen/bearbeiten. Mit fuerObjektId wird sie danach dem Objekt als „als“ (Eigentümer/Vermieter) zugeordnet.
+async function personZeigen(id, fuerObjektId = null, als = 'Eigentümer') {
+  const p = id ? await db.holen('eigentuemer', id) : { rolle: als === 'Vermieter' ? 'Vermieter' : 'Eigentümer' };
   if (id && !fuerObjektId) {
     zustand.auswahl = { art: 'eigentuemer', id };
     listeZeichnen();
   }
-  const objekte = id ? (await db.alle('objekte')).filter((o) => o.eigentuemer_id === id) : [];
+  const objekt = fuerObjektId ? await db.holen('objekte', fuerObjektId) : null;
+  if (!id && als === 'Vermieter' && objekt?.eigentuemer_id) p.fuer_eigentuemer_id = objekt.eigentuemer_id;
+  const eigentuemerListe = (await db.alle('eigentuemer')).filter((x) => x.id !== id && x.rolle === 'Eigentümer')
+    .sort((a, b) => rollen.name(a).localeCompare(rollen.name(b)));
+  const objekte = id ? (await db.alle('objekte')).filter((o) => o.eigentuemer_id === id || o.vermieter_id === id) : [];
+  const vermieterFuer = id ? (await db.alle('eigentuemer')).filter((x) => x.fuer_eigentuemer_id === id) : [];
   $('#detail').innerHTML = `
     <form class="karte" id="form-eig">
-      <div class="karte-kopf"><h2>${id ? esc(e.name || 'Eigentümer') : 'Neuer Eigentümer / Vermieter'}</h2></div>
+      <div class="karte-kopf"><h2>${id ? esc(rollen.name(p)) : `Neuer ${als}`}${objekt ? ` <span class="hinweis">für ${esc(objekt.bezeichnung)}</span>` : ''}</h2></div>
       <div class="felder">
-        <label>Anrede ${auswahlFeld('anrede', ['', 'Frau', 'Herr', 'Firma'], e.anrede || '')}</label>
-        <label>Name <input name="name" value="${esc(e.name)}" required></label>
-        <label>Rolle ${auswahlFeld('rolle', ROLLEN, e.rolle)}</label>
-        <label>Firma <input name="firma" value="${esc(e.firma)}"></label>
-        <label>E-Mail <input name="email" type="email" value="${esc(e.email)}"></label>
-        <label>Telefon <input name="telefon" type="tel" value="${esc(e.telefon)}"></label>
-        <label class="breit">Anschrift <input name="adresse" value="${esc(e.adresse)}"></label>
-        <label class="breit">Notizen <textarea name="notizen" rows="3">${esc(e.notizen)}</textarea></label>
+        <label>Anrede ${auswahlFeld('anrede', ['', 'Frau', 'Herr', 'Firma'], p.anrede || '')}</label>
+        <label>Name <input name="name" value="${esc(p.name)}" required></label>
+        <label>Rolle ${auswahlFeld('rolle', rollen.ROLLEN, p.rolle)}</label>
+        <label>Firma <input name="firma" value="${esc(p.firma)}"></label>
+        <label>E-Mail <input name="email" type="email" value="${esc(p.email)}"></label>
+        <label>Telefon <input name="telefon" type="tel" value="${esc(p.telefon)}"></label>
+        <label class="breit" id="feld-fuer" ${p.rolle === 'Eigentümer' ? 'hidden' : ''}>Vermietet für Eigentümer
+          <select name="fuer_eigentuemer_id"><option value="">– keinen bestimmten –</option>${eigentuemerListe.map((x) => `<option value="${esc(x.id)}" ${x.id === p.fuer_eigentuemer_id ? 'selected' : ''}>${esc(rollen.name(x))}</option>`).join('')}</select>
+        </label>
+        <label class="breit">Anschrift <input name="adresse" value="${esc(p.adresse)}"></label>
+        <label class="breit">Notizen <textarea name="notizen" rows="3">${esc(p.notizen)}</textarea></label>
       </div>
       <div class="knopfreihe">
         <button class="knopf" type="submit">Speichern</button>
@@ -212,32 +253,40 @@ async function eigentuemerZeigen(id, fuerObjektId = null) {
       </div>
     </form>
     ${objekte.length ? `<section class="karte"><div class="karte-kopf"><h2>Objekte</h2></div>
-      <ul class="eintraege">${objekte.map((o) => `<li><button data-objekt="${esc(o.id)}"><span class="titel">${esc(o.bezeichnung)}</span><span class="unter">${esc(adresseText(o))}</span></button></li>`).join('')}</ul></section>` : ''}
+      <ul class="eintraege">${objekte.map((o) => `<li><button data-objekt="${esc(o.id)}"><span class="titel">${esc(o.bezeichnung)}</span><span class="unter">${esc([
+        o.eigentuemer_id === id ? 'Eigentümer' : '', o.vermieter_id === id || (o.eigentuemer_id === id && !o.vermieter_id) ? 'Vermieter' : '',
+      ].filter(Boolean).join(' und '))} · ${esc(adresseText(o))}</span></button></li>`).join('')}</ul></section>` : ''}
+    ${vermieterFuer.length ? `<section class="karte"><div class="karte-kopf"><h2>Vermieter für diesen Eigentümer</h2></div>
+      <ul class="eintraege">${vermieterFuer.map((x) => `<li><button data-person="${esc(x.id)}"><span class="titel">${esc(rollen.name(x))}</span><span class="unter">${esc(x.rolle || '')}</span></button></li>`).join('')}</ul></section>` : ''}
   `;
-  $('#form-eig').addEventListener('submit', async (ev) => {
+  const form = $('#form-eig');
+  form.rolle.addEventListener('change', () => { $('#feld-fuer').hidden = form.rolle.value === 'Eigentümer'; });
+  form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const neu = await db.speichern('eigentuemer', { ...e, ...Object.fromEntries(new FormData(ev.target)) });
+    const werte = Object.fromEntries(new FormData(ev.target));
+    if (werte.rolle === 'Eigentümer') werte.fuer_eigentuemer_id = '';
+    const neu = await db.speichern('eigentuemer', { ...p, ...werte });
     mail.kontakteAbgleichen().catch(() => {});
+    toast('Gespeichert.');
     if (fuerObjektId) {
-      const o = await db.holen('objekte', fuerObjektId);
-      await db.speichern('objekte', { ...o, eigentuemer_id: neu.id });
+      const r = await rollen.zuordnen(await db.holen('objekte', fuerObjektId), neu.id, als);
+      if (r.uebernommen) toast(`${als === 'Vermieter' ? 'Eigentümer' : 'Vermieter'} ${rollen.name(r.uebernommen)} automatisch übernommen.`);
       objektZeigen(fuerObjektId);
     } else {
-      eigentuemerZeigen(neu.id);
+      personZeigen(neu.id);
     }
-    toast('Gespeichert.');
   });
   $('#btn-zurueck')?.addEventListener('click', () => objektZeigen(fuerObjektId));
   $('#btn-eig-loeschen')?.addEventListener('click', async () => {
-    if (!confirm(`„${e.name}“ wirklich löschen? Die Zuordnung zu Objekten wird entfernt.`)) return;
-    for (const o of await db.alle('objekte')) if (o.eigentuemer_id === id) await db.speichern('objekte', { ...o, eigentuemer_id: '' });
-    await db.loeschen('eigentuemer', id);
+    if (!confirm(`„${rollen.name(p)}“ wirklich löschen? Die Zuordnung zu Objekten wird entfernt.`)) return;
+    await rollen.personEntfernen(id);
     mail.kontakteAbgleichen().catch(() => {});
     zustand.auswahl = null;
     willkommenZeigen();
     listeZeichnen();
   });
   document.querySelectorAll('#detail [data-objekt]').forEach((b) => b.addEventListener('click', () => objektZeigen(b.dataset.objekt)));
+  document.querySelectorAll('#detail [data-person]').forEach((b) => b.addEventListener('click', () => personZeigen(b.dataset.person)));
 }
 
 async function neuesObjekt() {
@@ -529,16 +578,16 @@ $('#suche').addEventListener('input', listeZeichnen);
 $('#eintraege').addEventListener('click', (ev) => {
   const b = ev.target.closest('button[data-id]');
   if (!b) return;
-  if (zustand.reiter === 'objekte') objektZeigen(b.dataset.id); else eigentuemerZeigen(b.dataset.id);
+  if (zustand.reiter === 'objekte') objektZeigen(b.dataset.id); else personZeigen(b.dataset.id);
 });
-$('#btn-neu').addEventListener('click', () => (zustand.reiter === 'objekte' ? neuesObjekt() : eigentuemerZeigen(null)));
+$('#btn-neu').addEventListener('click', () => (zustand.reiter === 'objekte' ? neuesObjekt() : personZeigen(null)));
 $('#btn-einstellungen').addEventListener('click', einstellungenOeffnen);
 $('#btn-abrufen').addEventListener('click', () => (mail.eingerichtet() ? postfachAbrufen({ jetzt: true }) : einstellungenOeffnen()));
 $('#btn-senden').addEventListener('click', entwurfSenden);
 $('#btn-mailto').addEventListener('click', entwurfMailto);
 
 willkommenZeigen();
-listeZeichnen();
+rollen.migrieren().catch(() => {}).then(listeZeichnen);
 
 // Android-App: Postfach-Stand laden und beim Öffnen bzw. Zurückkehren neue Mails übernehmen.
 (async () => {

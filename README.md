@@ -6,9 +6,21 @@ Wohnobjekte (Wohnungen, Häuser, Grundstücke …) verwalten, Eigentümer und Ve
 
 Der Assistent sucht das Objekt, liest den E-Mail-Verlauf mit dem Eigentümer und legt eine passende Antwort als Entwurf vor. **Gesendet wird erst, wenn du selbst auf „Senden“ tippst.**
 
+## Eigentümer und Vermieter
+
+Jedes Objekt hat einen **Eigentümer** und einen **Vermieter**:
+
+- Ist nur der Eigentümer eingetragen, **vermietet er selbst** – er ist dann automatisch auch der Vermieter.
+- Vermietet jemand anderes (z. B. eine Hausverwaltung), trägst du den Vermieter extra ein. Er wird mit dem Eigentümer **verknüpft**.
+- Trägst du bei einem weiteren Objekt denselben Eigentümer ein, wird sein Vermieter **automatisch übernommen** – und umgekehrt der Eigentümer, wenn du nur den Vermieter einträgst.
+- Passt ein Vermieter nicht zum Eigentümer (er ist für jemand anderen eingetragen), zeigt die App einen Hinweis.
+- „Schreib dem Vermieter …“ bzw. „Schreib dem Eigentümer …“ – der Assistent wählt die richtige Person.
+
 ## Android-App (empfohlen)
 
 **Herunterladen:** https://github.com/netster123/immobilien-app/releases/latest → `immobilien-assistent.apk`
+
+Neue Versionen installierst du einfach über die alte drüber – deine Daten bleiben erhalten. (Ausnahme: Wer v1.0.1 oder v1.0.2 installiert hat, muss einmalig deinstallieren, vorher Daten exportieren.)
 
 1. Die Datei auf dem Handy herunterladen und öffnen.
 2. Android fragt, ob der Browser Apps installieren darf → erlauben („Unbekannte Apps installieren“).
@@ -57,6 +69,7 @@ Bei jedem Push auf `main` baut GitHub Actions automatisch eine neue APK und ver�
 | `www/js/app.js` | Listen, Detailansichten, Dialoge, Postfach-Einstellungen |
 | `www/js/assistant.js` | Gemini-Assistent mit Werkzeugen (suchen, anlegen, Verlauf laden, Entwurf zeigen) |
 | `www/js/mail.js` | Verbindung zum Mail-Baustein, Speichern der Mails |
+| `www/js/rollen.js` | Regeln für Eigentümer und Vermieter (Verknüpfung, automatische Übernahme) |
 | `www/js/db.js` | Datenspeicher auf dem Gerät (IndexedDB) |
 | `www/js/speech.js` | Spracheingabe und Vorlesen (Android nativ, sonst Browser) |
 | `android/…/MailDienst.java` | IMAP-Abruf und SMTP-Versand (z. B. GMX) |
