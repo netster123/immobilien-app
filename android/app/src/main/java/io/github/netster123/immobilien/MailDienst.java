@@ -124,8 +124,9 @@ public class MailDienst {
 
     public static String fehlertext(Exception e) {
         if (e instanceof AuthenticationFailedException) {
-            return "Anmeldung abgelehnt. Bitte E-Mail und Passwort prüfen. Bei GMX außerdem im Postfach unter "
-                    + "Einstellungen → POP3/IMAP Abruf den Zugriff per IMAP erlauben.";
+            String server = e.getMessage() == null ? "" : e.getMessage().trim();
+            return "Anmeldung abgelehnt. Bitte E-Mail-Adresse und Passwort prüfen."
+                    + (server.isEmpty() ? "" : " (Server meldet: " + server + ")");
         }
         String m = e.getMessage();
         Throwable c = e.getCause();

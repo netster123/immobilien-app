@@ -404,10 +404,22 @@ async function postfachFormular() {
   $('#postfach-status').textContent = k.eingerichtet ? `Eingerichtet: ${k.email}` : 'Noch nicht eingerichtet.';
 }
 
+function anmeldeHilfe(meldung, host) {
+  if (!/Anmeldung abgelehnt|AUTHENTICATE|Invalid credentials|Application-specific/i.test(meldung)) return '';
+  if (/gmail\.com$/i.test(host)) {
+    return ' → Bei Gmail/Googlemail: 1) App-Passwort statt normalem Passwort verwenden (myaccount.google.com/apppasswords, '
+      + 'braucht die Bestätigung in zwei Schritten), 2) in Gmail unter Einstellungen → Weiterleitung & POP/IMAP den IMAP-Zugriff aktivieren.';
+  }
+  if (/gmx\.net$/i.test(host)) return ' → Bei GMX im Postfach unter Einstellungen → POP3/IMAP Abruf den Zugriff erlauben.';
+  return '';
+}
+
 function postfachWerte() {
   const f = $('#form-einstellungen');
   return {
-    email: f.mailAdresse.value.trim(), passwort: f.mailPasswort.value,
+    email: f.mailAdresse.value.trim(),
+    // App-Passwörter (Gmail, GMX) werden mit Leerzeichen angezeigt, die nicht dazugehören.
+    passwort: /gmail\.com$/i.test(f.imapHost.value.trim()) ? f.mailPasswort.value.replace(/\s+/g, '') : f.mailPasswort.value.trim(),
     imapHost: f.imapHost.value.trim(), imapPort: Number(f.imapPort.value) || 993,
     smtpHost: f.smtpHost.value.trim(), smtpPort: Number(f.smtpPort.value) || 587,
     absenderName: f.absenderName.value.trim(), intervall: Number(f.intervall.value),
@@ -443,7 +455,7 @@ $('#btn-postfach-testen').addEventListener('click', async () => {
     $('#form-einstellungen').mailPasswort.value = '';
     postfachKnopf();
   } catch (err) {
-    status.textContent = 'Fehler: ' + err.message;
+    status.textContent = 'Fehler: ' + err.message + anmeldeHilfe(err.message, w.imapHost);
   }
 });
 
