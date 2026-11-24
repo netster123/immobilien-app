@@ -7,6 +7,7 @@ const plugin = () => window.Capacitor?.Plugins?.Mail;
 
 export const ANBIETER = {
   GMX: { imapHost: 'imap.gmx.net', imapPort: 993, smtpHost: 'mail.gmx.net', smtpPort: 587 },
+  Gmail: { imapHost: 'imap.gmail.com', imapPort: 993, smtpHost: 'smtp.gmail.com', smtpPort: 587 },
   'WEB.DE': { imapHost: 'imap.web.de', imapPort: 993, smtpHost: 'smtp.web.de', smtpPort: 587 },
   'T-Online': { imapHost: 'secureimap.t-online.de', imapPort: 993, smtpHost: 'securesmtp.t-online.de', smtpPort: 587 },
   Andere: { imapHost: '', imapPort: 993, smtpHost: '', smtpPort: 587 },

@@ -392,6 +392,7 @@ async function postfachFormular() {
   const anbieter = Object.entries(mail.ANBIETER).find(([, v]) => v.imapHost && v.imapHost === k.imapHost)?.[0]
     || (k.imapHost ? 'Andere' : 'GMX');
   f.anbieter.value = anbieter;
+  passwortHinweis(anbieter);
   f.mailAdresse.value = k.email || '';
   f.mailPasswort.value = '';
   f.mailPasswort.placeholder = k.hatPasswort ? 'gespeichert – nur zum Ändern eingeben' : '';
@@ -419,7 +420,16 @@ $('#form-einstellungen').anbieter.addEventListener('change', (ev) => {
   f.imapHost.value = v.imapHost; f.imapPort.value = v.imapPort;
   f.smtpHost.value = v.smtpHost; f.smtpPort.value = v.smtpPort;
   $('#postfach-server').open = ev.target.value === 'Andere';
+  passwortHinweis(ev.target.value);
 });
+
+function passwortHinweis(anbieter) {
+  $('#passwort-hinweis').textContent = anbieter === 'Gmail'
+    ? 'Bei Gmail nicht dein normales Passwort eintragen, sondern ein App-Passwort: myaccount.google.com/apppasswords (dafür muss die Bestätigung in zwei Schritten aktiv sein).'
+    : anbieter === 'GMX'
+      ? 'Bei GMX im Postfach unter Einstellungen → POP3/IMAP Abruf den IMAP-Zugriff erlauben. Mit Zwei-Faktor-Anmeldung ein App-Passwort verwenden.'
+      : 'Viele Anbieter verlangen, dass der IMAP-Zugriff erlaubt ist, und bei Zwei-Faktor-Anmeldung ein App-Passwort.';
+}
 
 $('#btn-postfach-testen').addEventListener('click', async () => {
   const status = $('#postfach-status');

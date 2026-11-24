@@ -85,11 +85,11 @@
       <fieldset class="postfach" id="postfach-app" hidden>
         <legend>E-Mail-Konto</legend>
         <label>Anbieter
-          <select name="anbieter"><option>GMX</option><option>WEB.DE</option><option>T-Online</option><option>Andere</option></select>
+          <select name="anbieter"><option>GMX</option><option>Gmail</option><option>WEB.DE</option><option>T-Online</option><option>Andere</option></select>
         </label>
         <label>E-Mail-Adresse <input name="mailAdresse" type="email" autocomplete="off"></label>
         <label>Passwort <input name="mailPasswort" type="password" autocomplete="off">
-          <small>Bei GMX im Postfach unter Einstellungen → POP3/IMAP Abruf den IMAP-Zugriff erlauben. Mit Zwei-Faktor-Anmeldung ein App-Passwort verwenden.</small>
+          <small id="passwort-hinweis">Bei GMX im Postfach unter Einstellungen → POP3/IMAP Abruf den IMAP-Zugriff erlauben. Mit Zwei-Faktor-Anmeldung ein App-Passwort verwenden.</small>
         </label>
         <details id="postfach-server">
           <summary>Server</summary>
